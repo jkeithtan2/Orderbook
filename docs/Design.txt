@@ -1,0 +1,16 @@
+Use "done" events as a golden source,  we don't remove orders from the order book even if the size on book is 0 after a match. For a few reasons
+	- "open" numbers reported was initally wrong
+	- calculations in error(floating point possibly) led to size on book being 0 when there is actually size remaining
+	- better to use a single source
+
+Because of the above:
+	- Rather than focusing on if match events are FIFO time order piority, we just reduce the size in the book by the makers size in the book. 
+	- Reason is because we shouldnt make the assumption that "done" will always follow a "match" (although data seems to suggest it always has otherwise)
+	
+Few ways to check for done that is filled and a limit order but was never on the book:
+    - ignore it. this will not affect the books. An error would have been counted towards the open msg skipped
+    sequence number
+    - check if the match order had a better price than the done order, if it did it was never on the books, if it
+    did not it should have been on the books and we can throw an error that it was not
+
+Config will be dynamic with hot loading capabilites and stored in a config server during production situations
