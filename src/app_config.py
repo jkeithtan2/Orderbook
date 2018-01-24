@@ -4,9 +4,9 @@ naming convention is that of a .properties file
 """
 from pathlib import Path
 
-num_output_levels = 25
-
 output_path = Path.cwd().joinpath("output\output_stream.txt")
+
+num_output_levels = 25
 
 error_threshold = 10
 
