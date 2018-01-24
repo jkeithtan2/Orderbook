@@ -1,0 +1,76 @@
+The program is designed as a set of objects are chained together where the output from a object feeds into the
+input of the next object via pipes
+
+The main driver behind the design was wanting to provide the ability to swap or add functionality easily and also
+because I wanted to experiment with asyncio.
+
+For this assignment, pipes are implemented as asyncio.Queue()s but could be any object that
+implements an async get and async put method
+
+The design can be thought of as such:
+Socket Stream(1) | Event dispatcher(1) | Orderbook(*) | Output Stream(1)
+
+On startup, all objects that have dependency on the "Pipeline" class should be registered on the main event loop
+Socket Stream uses the aiohttp library to poll for events. Events are then routed to the relevant orderbook queue
+(one per instrument) via the event dispatcher. Orderbook mantains the state of the orderbook and triggers calls to fetch the
+full_feed via the rest client whenever necessary. The orderbook pushes it's top X levels whenever there is a change to
+it to the output feed which then which then prints the top X orders of the orderbook to stdout.
+Commented out method 'write_to_file' details how it could be done using aiofiles
+
+
+Config:
+Configs for this project are stored in app_config.py. Ideally it will be stored in a config server and loaded//reloaded
+dynamically for each development//integration environment
+
+
+Further testing:
+Tests are divided into Unit and Integration Test. E2E test would require the implementation of mock server
+Unit test use both mock and real data with simulated runs on btc_eur and ltc_usd. Given more time, I would add many
+more simulated runs, especially on eth-btc which seems to be the feed which triggers the most error logs
+
+Event handling:
+Orders are not removed from the order book after a match even if the remaining size is 0 for a few reasons:
+	- calculations errors led to size on book being 0 when there is actually size remaining
+	- programmatically it's easier to use a single source, a "done" event as a trigger to remove orders from the book
+
+	However, because of the above decision:
+	- During a match event, we don't care if it's in FIFO match piority as there might be other "match" events between
+	a match event that takes an order off the order book and the "done" event that we use as a signal to remove the
+	event
+
+Error Handling:
+
+With availability over consistency in mind, for this assignment, error handling in the event stream
+is handled in the following manner:
+    1) each orderbook has an "error_threshold" value which determines the tolerance level which when exceeded stops
+    the processing of the event stream and rebuilds the order book from the full book endpoint
+    2) At the moment, the algorithm is naive; an 'error' or  'warning' increments the error count by 1. Book is
+    rebuilt when error_count > error_threshold
+    3) With more experimentation and over time, error events in the feed can be weighted differently to
+    provide a more sophisticated way of calculating the error_count and error_threshold
+
+An alternative to the above algorithm is as follows:
+    1) When error_count > error_threshold, a new task to call the http endpoint for the full book is placed on
+    the event loop via "ensure_future" while the main task continues to process and output changes to the book.
+    2) Any new events made after the ensure_future call is duplicated into a list in addition to being
+    processed and printed without stopping the feed
+    3) The snapshot which is returned will have the duplicated events replayed over it and become the orderbook.
+
+The first algorithm was chosen for two reasons, ease of implementation and because, with a reasonable error threshold,
+the book is likely to be very wrong is error_count > error_threshold and so a short pause to rebuild the book might be
+a good idea
+
+I've observed that the best way to query the http endpoints is with a low timeout value and with a high retry value.
+If a server does not response quickly, the best policy seems to be just retrying again until we get one that responses
+quickly. This is for local though and might differ if program was located on a server in their AWS zone
+
+Socket retry policies need to be experimented with more.
+
+Things to note:
+line 63 of orderbook.py is "asyncio.sleep(0)" (https://github.com/python/asyncio/issues/284)
+One observation, possibly due to the nature of cooperative async, is that if the orderbook is not yielded after
+it pushes an event to the output queue, it might continue to processing events in it's own queue as opposed to
+yielding control to the output stream. This might cause results to appear in periodic chunks rather than a smooth stream
+
+Because I developed the assignment on windows, I didn't get the change to use uvloop but it's apprently much faster
+and worth checking out (https://github.com/MagicStack/uvloop)

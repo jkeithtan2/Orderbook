@@ -1,0 +1,10 @@
+Total time taken: ~55 hours divided into
+
+(Tues before last - last Wed)
+~5 hours learning python
+~3 hours playing around with GDAX API
+
+(last Wed - today)
+~25 hours writing test cases
+~15 hours refactoring code to idiomatic python
+~10 hours designing program and writing functional code
