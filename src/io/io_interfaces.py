@@ -1,7 +1,6 @@
 import concurrent
 import logging
 import json
-import aiofiles as aiofiles
 import aiohttp
 
 from enum import Enum, auto
