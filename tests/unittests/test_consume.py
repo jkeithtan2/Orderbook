@@ -3,7 +3,7 @@ import json
 import unittest
 from pathlib import Path
 
-from tenacity import RetryError, retry_if_exception_type, stop_after_attempt, retry
+from tenacity import retry_if_exception_type, stop_after_attempt, retry
 
 from src.exceptions import SnapshotHttpException
 from src.io.io_interfaces import Pipeline
