@@ -67,7 +67,7 @@ quickly. This is for local though and might differ if program was located on a s
 Socket retry policies need to be experimented with more.
 
 Things to note:
-The system can be extended by having all data sent from the socket feed into a database (cassandra, HDFS) for further
+The system can be extended by having all data from the socket feed streamed into a database (cassandra, HDFS) for further
 analytical purposes. Not all data is used to built the orderbook but can be stored
 
 Needs tests to see if breaking down the program into different processess would speed up processing
