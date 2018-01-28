@@ -8,7 +8,7 @@ The main driver behind the design was wanting to provide the ability to swap or 
 and also because I wanted to experiment with asyncio.
 
 The design can be thought of as such:
-Socket Stream(1) | Event dispatcher(1) | Orderbook(*) | Output Stream(1)
+Socket Stream | Event dispatcher | Orderbooks | Output Stream
 
 On startup, all objects that have dependency on the "Pipeline" class should be registered on the main
 event loop. Socket Stream uses the aiohttp library to poll for events. Events are then routed to the
