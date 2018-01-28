@@ -67,6 +67,11 @@ quickly. This is for local though and might differ if program was located on a s
 Socket retry policies need to be experimented with more.
 
 Things to note:
+The system can be extended by having all data sent from the socket feed into a database (cassandra, HDFS) for further
+analytical purposes. Not all data is used to built the orderbook but can be stored
+
+Needs tests to see if breaking down the program into different processess would speed up processing
+
 line 63 of orderbook.py is "asyncio.sleep(0)" (https://github.com/python/asyncio/issues/284)
 One observation, possibly due to the nature of cooperative async, is that if the orderbook is not yielded after
 it pushes an event to the output queue, it might continue to processing events in it's own queue as opposed to
