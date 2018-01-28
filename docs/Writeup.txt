@@ -1,57 +1,84 @@
-The program is designed as a set of tasks/coroutines chained together where the output from a task feeds into the input of the next task via pipes. For the purpose of this assignment, pipes are implemented as asyncio.Queue()s but could be any object that implements an async get and async put method. Tasks can be any object that takes in as params an input/output stream and/or input and output pipes. Additionally, orderbooks are any objects that implement the "begin_consume" method.
+The program is designed as a set of tasks/coroutines chained together where the output from a task
+feeds into the input of the next task via pipes. For the purpose of this assignment, pipes are implemented
+as asyncio.Queue()s but could be any object that implements an async get and async put method. Tasks can be
+any object that takes in as params an input/output stream and/or input and output pipes. Additionally,
+orderbooks are any objects that implement the "begin_consume" method.
 
-The main driver behind the design was wanting to provide the ability to swap or add functionality easily and also because I wanted to experiment with asyncio.
+The main driver behind the design was wanting to provide the ability to swap or add functionality easily
+and also because I wanted to experiment with asyncio.
 
 The design can be thought of as such:
 Socket Stream(1) | Event dispatcher(1) | Orderbook(*) | Output Stream(1)
 
-On startup, all objects that have dependency on the "Pipeline" class should be registered on the main event loop. Socket Stream uses the aiohttp library to poll for events. Events are then routed to the relevant orderbook queue (one per instrument) via the event dispatcher. Orderbook mantains the state of the orderbook and triggers calls to fetch the full_feed via the rest client whenever necessary. The orderbook pushes it's top X levels whenever there is a change to it to the output feed which then which then prints the top X orders of the orderbook to stdout. Commented out method 'write_to_file' details how it could be done using aiofiles
+On startup, all objects that have dependency on the "Pipeline" class should be registered on the main
+event loop. Socket Stream uses the aiohttp library to poll for events. Events are then routed to the
+relevant orderbook queue (one per instrument) via the event dispatcher. Orderbook mantains the state
+of the orderbook and triggers calls to fetch the full_feed via the rest client whenever necessary.
+The orderbook pushes it's top X levels whenever there is a change to it to the output feed which then
+which then prints the top X orders of the orderbook to stdout. Commented out method 'write_to_file'
+details how it could be done using aiofiles
 
 Config:
-Configs for this project are stored in app_config.py. Ideally it will be stored in a config server and loaded//reloaded
-dynamically for each development//integration environment
+Configs for this project are stored in app_config.py. Ideally it will be stored in a config 
+server and loaded//reloaded dynamically for each development//integration environment
 
 Further testing:
-Tests are divided into Unit and Integration Test. E2E test would require the implementation of mock server Unit test use both mock and real data with simulated runs on btc_eur and ltc_usd. Given more time, I would add many more simulated runs, especially on eth-btc which seems to be the feed which triggers the most error logs
+Tests are divided into Unit and Integration Test. E2E test would require the implementation of
+mock server Unit test use both mock and real data with simulated runs on btc_eur and ltc_usd.
+Given more time, I would add many more simulated runs, especially on eth-btc which seems to be the
+feed which triggers the most error logs
 
 Event handling:
 Orders are not removed from the order book after a match even if the remaining size is 0 for a few reasons:
 	- Calculations errors led to size on book being 0 when there is actually size remaining
-	- Programmatically it's easier to use a single source, a "done" event as a trigger to remove orders from the book
+	- Programmatically it's easier to use a single source, a "done" event as a trigger to
+	remove orders from the book
 
 	However, because of the above decision:
-	- During a match event, we don't care if it's in FIFO time order piority as there might be other "match" events between the 		match event that takes an order off the order book and the "done" event that we use as a signal to remove the order from the 		book
+	- During a match event, we don't care if it's in FIFO time order piority as there might be
+	other "match" events between the match event that takes an order off the order book and the
+	"done" event that we use as a signal to remove the order from the book
 
 Error Handling:
 
 With availability over consistency in mind, for this assignment, error handling in the event stream
 is handled in the following manner:
-    1) each orderbook has an "error_threshold" value which determines the error tolerance level. When this level is exceeded, the 		program stops with the processing of the event stream and rebuilds the order book from the full book endpoint
-    2) At the moment, the algorithm is naive; an 'error' or  'warning' increments the error count by 1. Book is
-    rebuilt when error_count > error_threshold
+    1) each orderbook has an "error_threshold" value which determines the error tolerance level.
+    When this level is exceeded, the program stops with the processing of the event stream and
+    rebuilds the order book from the full book endpoint
+    2) At the moment, the algorithm is naive; an 'error' or  'warning' increments the error count 
+    by 1. Book is rebuilt when error_count > error_threshold
     3) With more experimentation and over time, error events in the feed can be weighted differently to
     provide a more sophisticated way of calculating the error_count and error_threshold
 
 An alternative to the above algorithm is as follows:
     1) When error_count > error_threshold, a new task to call that rebuilds the full book is placed on
     the event loop via "ensure_future". The main task continues to process and output changes to the book.
-    2) Any new events made after the ensure_future call is duplicated into a temporary list in addition to being
-    processed and printed without stopping the feed
-    3) The snapshot which is returned will have the events from the temporary list replayed over. This new snapshot with
-    replayed events from the temporary list becomes the new orderbook
+    2) Any new events made after the ensure_future call is duplicated into a temporary list in addition
+    to being processed and printed without stopping the feed
+    3) The snapshot which is returned will have the events from the temporary list replayed over. This 
+    new snapshot with replayed events from the temporary list becomes the new orderbook
 
-The first algorithm was chosen for two reasons, ease of implementation and because, with a reasonable error threshold, the book is likely to be in a bad state if error_count > error_threshold. A short pause to rebuild the book might therefore be a good idea
+The first algorithm was chosen for two reasons, ease of implementation and because, with a reasonable
+error threshold, the book is likely to be in a bad state if error_count > error_threshold. A short
+pause to rebuild the book might therefore be a good idea
 
-I've observed that the best way to query the http endpoints is with a low timeout value and with a high retry value. If the http response takes a while to come, the best policy seems to be just retrying again until we get a server that responses quickly. This is for local though and might differ if program was located on a server in their AWS zone
+I've observed that the best way to query the http endpoints is with a low timeout value and with a
+high retry value. If the http response takes a while to come, the best policy seems to be just retrying
+again until we get a server that responses quickly. This is for local though and might differ if program
+was located on a server in their AWS zone
 
 Socket retry policies need to be experimented with more.
 
 Things to note:
-The system can be extended by having all data from the socket feed streamed into a database (cassandra, HDFS) for further
-analytical purposes. Not all data is used to built the orderbook but can be stored
+The system can be extended by having all data from the socket feed streamed into a database (cassandra, HDFS) 
+for further analytical purposes. Not all data is used to built the orderbook but can be stored
 
 Needs tests to see if breaking down the program into different processess would speed up processing
 
-line 63 of orderbook.py is "asyncio.sleep(0)" (https://github.com/python/asyncio/issues/284). This is because, due to the nature of copperative scheduling, the output will appear in result chunks rather than a smooth stream if control is not regularly yielded from the orderbook task.
+line 63 of orderbook.py is "asyncio.sleep(0)" (https://github.com/python/asyncio/issues/284). This is because,
+due to the nature of copperative scheduling, the output will appear in result chunks rather than a smooth stream
+if control is not regularly yielded from the orderbook task.
 
-Because I developed the assignment on windows, I didn't get the chance to use uvloop but it's apprently much faster and worth checking out (https://github.com/MagicStack/uvloop)
+Because I developed the assignment on windows, I didn't get the chance to use uvloop but it's apprently much
+faster and worth checking out (https://github.com/MagicStack/uvloop)
